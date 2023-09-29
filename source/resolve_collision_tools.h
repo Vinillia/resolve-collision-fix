@@ -72,6 +72,7 @@ public:
 	inline INextBot* MyNextBotPointer(CBaseEntity* entity);
 	inline CBaseEntity* MyInfectedPointer(CBaseEntity* entity);
 
+	inline void CBaseEntity_SetAbsAngles(CBaseEntity* entity, const QAngle& angle);
 	inline void CBaseEntity_Touch(CBaseEntity* entity, CBaseEntity* them);
 	inline bool CBaseEntity_IsPlayer(CBaseEntity* entity);
 	inline bool CBaseEntity_IsAlive(CBaseEntity* entity);
@@ -93,6 +94,7 @@ protected:
 	void* m_CTraceFilterSimple_ShouldHitEntity;
 	void* m_ZombieBotCollisionTraceFilter_ShouldHitEntity;
 	void* m_CBaseEntity_TakeDamage;
+	void* m_CBaseEntity_SetAbsAngles;
 	void* m_CalculateExplosiveDamageForce;
 
 	int m_MyCombatCharacterPointer;
@@ -129,6 +131,11 @@ inline INextBot* ResolveCollisionTools::MyNextBotPointer(CBaseEntity* entity)
 inline CBaseEntity* ResolveCollisionTools::MyInfectedPointer(CBaseEntity* entity)
 {
 	return ine::call_vtable<CBaseEntity*>(entity, m_MyInfectedPointer);
+}
+
+inline void ResolveCollisionTools::CBaseEntity_SetAbsAngles(CBaseEntity* entity, const QAngle& angle)
+{
+	ine::call_this<void, CBaseEntity*, const QAngle&>(m_CBaseEntity_SetAbsAngles, entity, angle);
 }
 
 inline void ResolveCollisionTools::CBaseEntity_Touch(CBaseEntity* entity, CBaseEntity* them)

@@ -10,6 +10,7 @@ ResolveCollisionTools::ResolveCollisionTools()
 	m_CTraceFilterSimple_ShouldHitEntity = nullptr;
 	m_ZombieBotCollisionTraceFilter_ShouldHitEntity = nullptr;
 	m_CBaseEntity_TakeDamage = nullptr;
+	m_CBaseEntity_SetAbsAngles = nullptr;
 	m_CalculateExplosiveDamageForce = nullptr;
 	m_MyCombatCharacterPointer = -1;
 	m_MyNextBotPointer = -1;
@@ -54,6 +55,7 @@ bool ResolveCollisionTools::Initialize(SourceMod::IGameConfig* config)
 	m_CTraceFilterSimple_ShouldHitEntity = GetFunctionAddress("CTraceFilterSimple::ShouldHitEntity");
 	m_ZombieBotCollisionTraceFilter_ShouldHitEntity = GetFunctionAddress("ZombieBotCollisionTraceFilter::ShouldHitEntity");
 	m_CBaseEntity_TakeDamage = GetFunctionAddress("CBaseEntity::TakeDamage");
+	m_CBaseEntity_SetAbsAngles = GetFunctionAddress("CBaseEntity::SetAbsAngles");
 	m_CalculateExplosiveDamageForce = GetFunctionAddress("CalculateExplosiveDamageForce");
 
 	m_MyCombatCharacterPointer = GetConfigOffset("MyCombatCharacterPointer");

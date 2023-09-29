@@ -12,8 +12,8 @@
 class INextBotReply;
 class INextBot;
 struct animevent_t;
-enum Activity {};
-
+// enum Activity {};
+using Activity = int;
 //----------------------------------------------------------------------------------------------------------------
 /**
  * The interface for control and information about the bot's body state (posture, animation state, etc)

@@ -18,12 +18,18 @@ CDebugOverlay* debugoverlay = nullptr;
 
 CDetour* g_pResolveCollisionDetour = nullptr;
 CDetour* g_pResolveZombieCollisionDetour = nullptr;
+CDetour* g_pResolveZombieClimbUpLedgeDetour = nullptr;
 
-ConVar z_resolve_collision("z_resolve_collision", "1", 0, "0 - Use original function\n1 - Use extension implementation with fix\n2 - Use extension implementation without fix\n3 - Neither of calls");
-ConVar z_resolve_collision_debug("z_resolve_collision_debug", "0", 0, "0 - Disable collision overlay\n1 - Enable collision overlay\n2 - Enable clean collision overlay (works only for 1 common but smoother)");
+ConVar z_resolve_collision("z_resolve_collision", "1", 0, "0 - Use original function; 1 - Use extension implementation with fix; 2 - Use extension implementation without fix; 3 - Neither of calls");
+ConVar z_resolve_collision_debug("z_resolve_collision_debug", "0", 0, "0 - Disable collision overlay;1 - Enable collision overlay; 2 - Enable clean collision overlay (works only for 1 common but smoother)");
 
-ConVar z_resolve_zombie_collision("z_resolve_zombie_collision", "1", 0, "0 - Use original function\n1 - Use extension implementation");
+ConVar z_resolve_zombie_collision("z_resolve_zombie_collision", "1", 0, "0 - Use original function; 1 - Use extension implementation");
 ConVar z_resolve_zombie_collision_multiplier("z_resolve_zombie_collision_multiplier", "1.0", 0, "Multiplier of commons collision force");
+
+ConVar z_resolve_zombie_climb_up_ledge("z_resolve_zombie_climb_up_ledge", "1", 0, "0 - Use original function; 1 - Use extension implementation");
+ConVar z_resolve_zombie_climb_up_ledge_debug("z_resolve_zombie_climb_up_ledge_debug", "1", 0, "0 - Disable debug; 1 - Enable debug");
+ConVar z_resolve_zombie_climb_up_ledge_height_add("z_resolve_zombie_climb_up_ledge_height_add", "5.0", 0, "How much we increase goal Z-axis of climb");
+ConVar z_resolve_zombie_climb_up_ledge_adjust_add("z_resolve_zombie_climb_up_ledge_adjust_add", "5.0", 0, "How much we adjustor height");
 
 DETOUR_DECL_MEMBER1(NextBotGroundLocomotion__ResolveZombieCollisions, Vector, const Vector&, pos)
 {
@@ -48,6 +54,16 @@ DETOUR_DECL_MEMBER3(NextBotGroundLocomotion__ResolveCollision, Vector, const Vec
 	return DETOUR_MEMBER_CALL(NextBotGroundLocomotion__ResolveCollision)(from, to, recursionLimit);
 }
 
+DETOUR_DECL_MEMBER3(NextBotGroundLocomotion__ClimbUpToLedge, bool, const Vector&, landingGoal, const Vector&, landingForward, const CBaseEntity*, obstacle)
+{
+	NextBotGroundLocomotion* groundLocomotion = (NextBotGroundLocomotion*)this;
+
+	if (z_resolve_zombie_climb_up_ledge.GetBool())
+		return groundLocomotion->ClimbUpToLedgeThunk(landingGoal, landingForward, obstacle);
+
+	return DETOUR_MEMBER_CALL(NextBotGroundLocomotion__ClimbUpToLedge)(landingGoal, landingForward, obstacle);
+}
+
 bool SDKResolveCollision::SDK_OnLoad(char* error, size_t maxlen, bool late)
 {
 	if (!gameconfs->LoadGameConfigFile("l4d2_resolve_collision", &gpConfig, error, maxlen))
@@ -63,6 +79,7 @@ bool SDKResolveCollision::SDK_OnLoad(char* error, size_t maxlen, bool late)
 
 	g_pResolveCollisionDetour = DETOUR_CREATE_MEMBER(NextBotGroundLocomotion__ResolveCollision, "NextBotGroundLocomotion::ResolveCollision");
 	g_pResolveZombieCollisionDetour = DETOUR_CREATE_MEMBER(NextBotGroundLocomotion__ResolveZombieCollisions, "NextBotGroundLocomotion::ResolveZombieCollisions");
+	g_pResolveZombieClimbUpLedgeDetour = DETOUR_CREATE_MEMBER(NextBotGroundLocomotion__ClimbUpToLedge, "NextBotGroundLocomotion::ClimbUpToLedge");
 
 	if (g_pResolveCollisionDetour == nullptr)
 	{
@@ -76,8 +93,15 @@ bool SDKResolveCollision::SDK_OnLoad(char* error, size_t maxlen, bool late)
 		return false;
 	}
 
+	if (g_pResolveZombieClimbUpLedgeDetour == nullptr)
+	{
+		V_snprintf(error, maxlen, "Failed to create NextBotGroundLocomotion::ClimbUpToLedge detour");
+		return false;
+	}
+
 	g_pResolveCollisionDetour->EnableDetour();
 	g_pResolveZombieCollisionDetour->EnableDetour();
+	g_pResolveZombieClimbUpLedgeDetour->EnableDetour();
 	return true;
 }
 
@@ -118,6 +142,12 @@ void SDKResolveCollision::SDK_OnUnload()
 	{
 		g_pResolveZombieCollisionDetour->Destroy();
 		g_pResolveZombieCollisionDetour = nullptr;
+	}
+
+	if (g_pResolveZombieClimbUpLedgeDetour)
+	{
+		g_pResolveZombieClimbUpLedgeDetour->Destroy();
+		g_pResolveZombieClimbUpLedgeDetour = nullptr;
 	}
 }
 

@@ -25,6 +25,12 @@ public:
 	virtual ~CBasePropDoor() {};
 };
 
+bool IgnoreActorsTraceFilterFunction(IHandleEntity* pServerEntity, int contentsMask)
+{
+	CBaseEntity* entity = EntityFromEntityHandle(pServerEntity);
+	return (collisiontools->MyInfectedPointer(entity) == NULL && !collisiontools->CBaseEntity_IsPlayer(entity));
+}
+
 //--------------------------------------------------------------------------------------------
 /**
  * Trace filter that skips "traversable" entities.  The "when" argument creates
@@ -63,6 +69,23 @@ private:
 	ILocomotion::TraverseWhenType m_when;
 };
 
+class NextBotTraversableTraceIgnoreActorsFilter : public NextBotTraversableTraceFilter
+{
+public:
+	NextBotTraversableTraceIgnoreActorsFilter(INextBot* bot, ILocomotion::TraverseWhenType when = ILocomotion::EVENTUALLY) : NextBotTraversableTraceFilter(bot, when)
+	{
+	}
+
+	virtual bool ShouldHitEntity(IHandleEntity* pServerEntity, int contentsMask)
+	{
+		if (NextBotTraversableTraceFilter::ShouldHitEntity(pServerEntity, contentsMask))
+		{
+			return IgnoreActorsTraceFilterFunction(pServerEntity, contentsMask);
+		}
+
+		return false;
+	}
+};
 
 class GroundLocomotionCollisionTraceFilter : public CTraceFilterSimple
 {
@@ -422,4 +445,224 @@ Vector NextBotGroundLocomotion::ResolveZombieCollisions(const Vector& pos)
 	}
 
 	return adjustedNewPos;
+}
+
+inline void GetHeightAdjustor(float height, float& heightAdjust, int& activity)
+{
+	if (height >= 30.0)
+	{
+		if (height >= 42.0)
+		{
+			if (height >= 54.0)
+			{
+				if (height >= 66.0)
+				{
+					if (height >= 78.0)
+					{
+						if (height >= 90.0)
+						{
+							if (height >= 102.0)
+							{
+								if (height >= 114.0)
+								{
+									if (height >= 126.0)
+									{
+										if (height >= 138.0)
+										{
+											if (height >= 150.0)
+											{
+												if (height >= 162.0)
+												{
+													heightAdjust = height - 168.0;
+													activity = 737;
+												}
+												else
+												{
+													heightAdjust = height - 156.0;
+													activity = 735;
+												}
+											}
+											else
+											{
+												heightAdjust = height - 144.0;
+												activity = 733;
+											}
+										}
+										else
+										{
+											heightAdjust = height - 132.0;
+											activity = 732;
+										}
+									}
+									else
+									{
+										heightAdjust = height - 120.0;
+										activity = 730;
+									}
+								}
+								else
+								{
+									heightAdjust = height - 108.0;
+									activity = 728;
+								}
+							}
+							else
+							{
+								heightAdjust = height - 96.0;
+								activity = 727;
+							}
+						}
+						else
+						{
+							heightAdjust = height - 84.0;
+							activity = 726;
+						}
+					}
+					else
+					{
+						heightAdjust = height - 72.0;
+						activity = 725;
+					}
+				}
+				else
+				{
+					heightAdjust = height - 60.0;
+					activity = 723;
+				}
+			}
+			else
+			{
+				heightAdjust = height - 48.0;
+				activity = 721;
+			}
+		}
+		else
+		{
+			heightAdjust = height - 36.0;
+			activity = 719;
+		}
+	}
+	else
+	{
+		heightAdjust = height - 24.0;
+		activity = 718;
+	}
+}
+
+bool NextBotGroundLocomotion::ClimbUpToLedgeThunk(const Vector& landingGoal, const Vector& landingForward, const CBaseEntity* obstacle)
+{
+	INextBot* bot = GetBot();
+	IBody* body = bot->GetBodyInterface();
+
+	if (!IsOnGround() || m_isClimbingUpToLedge)
+		return 0;
+
+	const Vector& feet = GetFeet();
+	const float height = landingGoal.z - feet.z;
+	
+	Vector mins(-1.0f, -1.0f, GetStepHeight());
+	Vector maxs(1.0f, 1.0f, height);
+
+	if (mins.z > height)
+	{
+		maxs.z = mins.z;
+		mins.z = height;
+	}
+
+	float heightAdjust = 0.0f;
+	float hullWidth = body->GetHullWidth();
+	float hullWidthX3 = hullWidth * 3.0f;
+
+	trace_t trace;
+	Vector start, end, normal;
+	Vector landingGoalResolve = landingGoal;
+	landingGoalResolve.z = feet.z;
+
+	while (true)
+	{
+		start = landingGoalResolve - (landingForward * heightAdjust);
+		end = feet + hullWidth * 10.0f * landingForward;
+
+		NextBotTraversableTraceIgnoreActorsFilter filter(bot);
+		TraceHull(start, end, mins, maxs, body->GetSolidMask(), &filter, &trace);
+
+		normal = trace.plane.normal;
+		heightAdjust = (hullWidth * 0.5) + heightAdjust;
+		
+		if (hullWidthX3 < heightAdjust)
+		{
+			goto ret;
+		}
+
+		if (trace.startsolid || trace.fraction >= 1.0 && !trace.allsolid)
+			continue;
+
+		break;
+	}
+
+	if (hullWidthX3 < heightAdjust || trace.fraction >= 1.0 && !trace.allsolid)
+	{
+ret:
+		m_velocity = vec3_origin;
+		m_acceleration = vec3_origin;
+		return false;
+	}
+
+	heightAdjust = 0.0f;
+	normal.z = 0.0f;
+	VectorNormalize(normal);
+
+	while (true)
+	{
+		start = normal * heightAdjust + landingGoalResolve;
+
+		end = start;
+		end.z = landingGoal.z;
+
+		trace_t trace;
+		NextBotTraversableTraceIgnoreActorsFilter filter(bot);
+		TraceHull(start, end, body->GetHullMins(), body->GetHullMaxs(), body->GetSolidMask(), &filter, &trace);
+
+		if (trace.fraction >= 1.0 && !trace.allsolid && !trace.startsolid)
+			break;
+
+		heightAdjust = (hullWidth * 0.25f) + heightAdjust;
+		if (hullWidthX3 >= heightAdjust)
+		{
+			landingGoalResolve = normal * heightAdjust + landingGoalResolve;
+			break;
+		}
+	}
+
+	const float addAdjustHeight = z_resolve_zombie_climb_up_ledge_adjust_add.GetFloat();
+	const float addGoalHeight = z_resolve_zombie_climb_up_ledge_height_add.GetFloat();
+
+	Vector goal, inverseNormal;
+	QAngle inverseAngle;
+	int activity;
+	float heightFixed;
+
+	GetHeightAdjustor(height + addAdjustHeight, heightFixed, activity);
+
+	goal = landingGoalResolve;
+	goal.z += heightFixed + addGoalHeight;
+	inverseNormal = -normal;
+
+	VectorAngles(inverseNormal, inverseAngle);
+	DriveTo(goal);
+	collisiontools->CBaseEntity_SetAbsAngles(m_nextBot, inverseAngle);
+
+	if (!body->StartActivity(activity, IBody::ACTIVITY_TRANSITORY | IBody::MOTION_CONTROLLED_XY | IBody::MOTION_CONTROLLED_Z))
+		return false;
+
+	if (z_resolve_zombie_climb_up_ledge_debug.GetBool())
+		NDebugOverlay::Line(GetFeet(), landingGoal, 255, 255, 25, false, 3.0f);
+
+	m_isJumping = true;
+	m_isClimbingUpToLedge = true;
+	m_ledgeJumpGoalPos = landingGoal;
+	
+	body->SetDesiredPosture(IBody::CROUCH);
+	bot->OnLeaveGround(GetGround());
+	return true;
 }
