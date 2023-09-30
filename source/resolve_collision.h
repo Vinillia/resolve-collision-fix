@@ -525,7 +525,7 @@ bool NextBotGroundLocomotion::ClimbUpToLedgeThunk(const Vector& landingGoal, con
 		if (hullWidthX3 < heightAdjust)
 			goto ret;
 
-		if (trace.startsolid || trace.fraction >= 1.0 && !trace.allsolid)
+		if (trace.startsolid || (trace.fraction >= 1.0 && !trace.allsolid))
 		{
 			continue;
 		}
@@ -533,7 +533,7 @@ bool NextBotGroundLocomotion::ClimbUpToLedgeThunk(const Vector& landingGoal, con
 		break;
 	}
 
-	if (hullWidthX3 < heightAdjust || trace.fraction >= 1.0 && !trace.allsolid)
+	if (hullWidthX3 < heightAdjust || (trace.fraction >= 1.0 && !trace.allsolid))
 	{
 ret:
 		m_velocity = vec3_origin;
@@ -902,7 +902,6 @@ inline void GetHeightAdjustor(float height, float& heightAdjust, int& activity)
 											heightAdjust = height - 156.0;
 											activity = 735;
 										}
-										heightAdjust = heightAdjust;
 									}
 									else
 									{
