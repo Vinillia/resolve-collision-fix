@@ -1,7 +1,6 @@
 #include "resolve_collision_tools.h"
 #include "extension.h"
 
-
 ResolveCollisionTools g_collisionTools;
 ResolveCollisionTools* collisiontools = &g_collisionTools;
 
@@ -10,7 +9,9 @@ ResolveCollisionTools::ResolveCollisionTools()
 	m_CTraceFilterSimple_ShouldHitEntity = nullptr;
 	m_ZombieBotCollisionTraceFilter_ShouldHitEntity = nullptr;
 	m_CBaseEntity_TakeDamage = nullptr;
+	m_CBaseEntity_SetAbsAngles = nullptr;
 	m_CalculateExplosiveDamageForce = nullptr;
+	m_CBaseEntity_SetGroundEntity = nullptr;
 	m_MyCombatCharacterPointer = -1;
 	m_MyNextBotPointer = -1;
 	m_MyInfectedPointer = -1;
@@ -18,7 +19,9 @@ ResolveCollisionTools::ResolveCollisionTools()
 	m_CBaseEntity_IsPlayer = -1;
 	m_CBaseEntity_IsAlive = -1;
 	m_Infected_m_vecNeighbors = -1;
-	m_CBaseEntity_m_vecAbsOrigin = 0;
+	m_CBaseEntity_m_vecAbsOrigin = -1;
+	m_CBaseEntity_m_vecAbsVelocity = -1;
+	m_CBaseEntity_m_hGroundEntity = -1;
 }
 
 bool ResolveCollisionTools::Initialize(SourceMod::IGameConfig* config)
@@ -54,6 +57,8 @@ bool ResolveCollisionTools::Initialize(SourceMod::IGameConfig* config)
 	m_CTraceFilterSimple_ShouldHitEntity = GetFunctionAddress("CTraceFilterSimple::ShouldHitEntity");
 	m_ZombieBotCollisionTraceFilter_ShouldHitEntity = GetFunctionAddress("ZombieBotCollisionTraceFilter::ShouldHitEntity");
 	m_CBaseEntity_TakeDamage = GetFunctionAddress("CBaseEntity::TakeDamage");
+	m_CBaseEntity_SetAbsAngles = GetFunctionAddress("CBaseEntity::SetAbsAngles");
+	m_CBaseEntity_SetGroundEntity = GetFunctionAddress("CBaseEntity::SetGroundEntity");
 	m_CalculateExplosiveDamageForce = GetFunctionAddress("CalculateExplosiveDamageForce");
 
 	m_MyCombatCharacterPointer = GetConfigOffset("MyCombatCharacterPointer");
@@ -62,9 +67,8 @@ bool ResolveCollisionTools::Initialize(SourceMod::IGameConfig* config)
 	m_CBaseEntity_Touch = GetConfigOffset("CBaseEntity::Touch");
 	m_CBaseEntity_IsPlayer = GetConfigOffset("CBaseEntity::IsPlayer");
 	m_CBaseEntity_IsAlive = GetConfigOffset("CBaseEntity::IsAlive");
-	m_CBaseEntity_m_vecAbsOrigin = GetConfigOffset("CBaseEntity::m_vecAbsOrigin");
 	m_Infected_m_vecNeighbors = GetConfigOffset("Infected::m_vecNeighbors");
-	
+
 	return ok;
 }
 
@@ -117,4 +121,47 @@ void ResolveCollisionTools::CalculateExplosiveDamageForce(CTakeDamageInfo* info,
 void ResolveCollisionTools::TakeDamage(CBaseEntity* entity, const CTakeDamageInfo& info)
 {
 	ine::call_this<void, CBaseEntity*, const CTakeDamageInfo&>(m_CBaseEntity_TakeDamage, entity, info);
+}
+
+CBaseEntity* ResolveCollisionTools::CBaseEntity_GetGroundEntity(CBaseEntity* entity)
+{
+	if (m_CBaseEntity_m_hGroundEntity == -1)
+	{
+		m_CBaseEntity_m_hGroundEntity = GetDataOffset(entity, "m_hGroundEntity");
+		Assert(m_CBaseEntity_m_hGroundEntity != -1);
+	}
+
+	CBaseHandle& handle = *reinterpret_cast<CBaseHandle*>((int)(entity)+m_CBaseEntity_m_hGroundEntity);
+
+	if (!handle.IsValid())
+		return nullptr;
+
+	return gamehelpers->ReferenceToEntity(handle.GetEntryIndex());
+}
+
+int ResolveCollisionTools::GetDataOffset(CBaseEntity* entity, const char* property)
+{
+	datamap_t* datamap = gamehelpers->GetDataMap(entity);
+
+	if (datamap)
+	{
+		sm_datatable_info_t info;
+
+		if (!gamehelpers->FindDataMapInfo(datamap, property, &info))
+			return -1;
+
+		return info.actual_offset;
+	}
+
+	return -1;
+}
+
+int ResolveCollisionTools::GetDataOffset(const char* netclass, const char* property)
+{
+	sm_sendprop_info_t info;
+
+	if (!gamehelpers->FindSendPropInfo(netclass, property, &info))
+		return -1;
+
+	return info.actual_offset;
 }

@@ -65,6 +65,9 @@ public:
 	ResolveCollisionTools();
 
 public:
+	int GetDataOffset(CBaseEntity* entity, const char* name);
+	int GetDataOffset(const char* netclass, const char* property);
+
 	inline bool CTraceFilterSimple_ShouldHitEntity(ITraceFilter* trace, IHandleEntity* pHandleEntity, int contentsMask);
 	inline bool ZombieBotCollisionTraceFilter_ShouldHitEntity(ITraceFilter* trace, IHandleEntity* pHandleEntity, int contentsMask);
 	
@@ -72,10 +75,15 @@ public:
 	inline INextBot* MyNextBotPointer(CBaseEntity* entity);
 	inline CBaseEntity* MyInfectedPointer(CBaseEntity* entity);
 
+	inline void CBaseEntity_SetGroundEntity(CBaseEntity* entity, CBaseEntity* ground);
+	inline void CBaseEntity_SetAbsAngles(CBaseEntity* entity, const QAngle& angle);
 	inline void CBaseEntity_Touch(CBaseEntity* entity, CBaseEntity* them);
 	inline bool CBaseEntity_IsPlayer(CBaseEntity* entity);
 	inline bool CBaseEntity_IsAlive(CBaseEntity* entity);
+
 	inline const Vector& CBaseEntity_GetAbsOrigin(CBaseEntity* entity);
+	inline const Vector& CBaseEntity_GetAbsVelocity(CBaseEntity* entity);
+	CBaseEntity* CBaseEntity_GetGroundEntity(CBaseEntity* entity);
 
 	inline CUtlVector< CHandle< CBaseEntity > >& Infected_GetNeighbors(CBaseEntity* infected);
 
@@ -93,6 +101,8 @@ protected:
 	void* m_CTraceFilterSimple_ShouldHitEntity;
 	void* m_ZombieBotCollisionTraceFilter_ShouldHitEntity;
 	void* m_CBaseEntity_TakeDamage;
+	void* m_CBaseEntity_SetAbsAngles;
+	void* m_CBaseEntity_SetGroundEntity;
 	void* m_CalculateExplosiveDamageForce;
 
 	int m_MyCombatCharacterPointer;
@@ -103,7 +113,9 @@ protected:
 	int m_CBaseEntity_IsAlive;
 	int m_Infected_m_vecNeighbors;
 	
-	unsigned int m_CBaseEntity_m_vecAbsOrigin;
+	int m_CBaseEntity_m_vecAbsOrigin;
+	int m_CBaseEntity_m_vecAbsVelocity;
+	int m_CBaseEntity_m_hGroundEntity;
 };
 
 inline bool ResolveCollisionTools::CTraceFilterSimple_ShouldHitEntity(ITraceFilter* trace, IHandleEntity* pHandleEntity, int contentsMask)
@@ -131,6 +143,11 @@ inline CBaseEntity* ResolveCollisionTools::MyInfectedPointer(CBaseEntity* entity
 	return ine::call_vtable<CBaseEntity*>(entity, m_MyInfectedPointer);
 }
 
+inline void ResolveCollisionTools::CBaseEntity_SetAbsAngles(CBaseEntity* entity, const QAngle& angle)
+{
+	ine::call_this<void, CBaseEntity*, const QAngle&>(m_CBaseEntity_SetAbsAngles, entity, angle);
+}
+
 inline void ResolveCollisionTools::CBaseEntity_Touch(CBaseEntity* entity, CBaseEntity* them)
 {
 	ine::call_vtable<void>(entity, m_CBaseEntity_Touch, them);
@@ -148,12 +165,34 @@ inline bool ResolveCollisionTools::CBaseEntity_IsAlive(CBaseEntity* entity)
 
 inline CUtlVector<CHandle<CBaseEntity>>& ResolveCollisionTools::Infected_GetNeighbors(CBaseEntity* infected)
 {
-	return *reinterpret_cast<CUtlVector<CHandle<CBaseEntity>>*>((unsigned int)(infected) + m_Infected_m_vecNeighbors);
+	return *reinterpret_cast<CUtlVector<CHandle<CBaseEntity>>*>((int)(infected) + m_Infected_m_vecNeighbors);
 }
 
 inline const Vector& ResolveCollisionTools::CBaseEntity_GetAbsOrigin(CBaseEntity* entity)
 {
-	return *reinterpret_cast<const Vector*>((unsigned int)(entity) + m_CBaseEntity_m_vecAbsOrigin);
+	if (m_CBaseEntity_m_vecAbsOrigin == -1)
+	{
+		m_CBaseEntity_m_vecAbsOrigin = GetDataOffset(entity, "m_vecAbsOrigin");
+		Assert(m_CBaseEntity_m_vecAbsOrigin != -1);
+	}
+
+	return *reinterpret_cast<const Vector*>((int)(entity) + m_CBaseEntity_m_vecAbsOrigin);
+}
+
+inline const Vector& ResolveCollisionTools::CBaseEntity_GetAbsVelocity(CBaseEntity* entity)
+{
+	if (m_CBaseEntity_m_vecAbsVelocity == -1)
+	{
+		m_CBaseEntity_m_vecAbsVelocity = GetDataOffset(entity, "m_vecAbsVelocity");
+		Assert(m_CBaseEntity_m_vecAbsVelocity != -1);
+	}
+
+	return *reinterpret_cast<const Vector*>((int)(entity) + m_CBaseEntity_m_vecAbsVelocity);
+}
+
+inline void ResolveCollisionTools::CBaseEntity_SetGroundEntity(CBaseEntity* entity, CBaseEntity* ground)
+{
+	ine::call_this<void>(m_CBaseEntity_SetGroundEntity, entity, ground);
 }
 
 extern ResolveCollisionTools* collisiontools;
