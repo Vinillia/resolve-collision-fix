@@ -40,7 +40,7 @@
 /* Basic information exposed publicly */
 #define SMEXT_CONF_NAME			"Resolve Collision Fix"
 #define SMEXT_CONF_DESCRIPTION	"Fix issues with low nb_update_frequency"
-#define SMEXT_CONF_VERSION		"1.1"
+#define SMEXT_CONF_VERSION		"1.2"
 #define SMEXT_CONF_AUTHOR		"BHaType"
 #define SMEXT_CONF_URL			"http://www.sourcemod.net/"
 #define SMEXT_CONF_LOGTAG		"Resolve Collision"
