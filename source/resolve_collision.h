@@ -564,14 +564,15 @@ ret:
 			break;
 
 		heightAdjust = (hullWidth * 0.25f) + heightAdjust;
-		if (hullWidthX3 >= heightAdjust)
+		if (hullWidthX3 < heightAdjust)
 		{
-			landingGoalResolve = normal * heightAdjust + landingGoalResolve;
-			break;
+			goto label_61;
 		}
 	}
 
+	landingGoalResolve = normal * heightAdjust + landingGoalResolve;
 
+label_61:
 	Vector goal, inverseNormal;
 	QAngle inverseAngle;
 	int activity;
