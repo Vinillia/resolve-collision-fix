@@ -86,5 +86,6 @@ extern ConVar z_resolve_zombie_collision_multiplier;
 
 extern ConVar z_resolve_zombie_climb_up_ledge;
 extern ConVar z_resolve_zombie_climb_up_ledge_debug;
+extern ConVar z_resolve_zombie_climb_up_slope_timer;
 
 #endif // _INCLUDE_SOURCEMOD_EXTENSION_PROPER_H_

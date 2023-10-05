@@ -605,7 +605,8 @@ label_61:
 	body->SetDesiredPosture(IBody::CROUCH);
 	bot->OnLeaveGround(GetGround());
 
-	g_slopeTimer[this].Start(2.0f);
+	float slopeInterval = z_resolve_zombie_climb_up_slope_timer.GetFloat();
+	g_slopeTimer[this].Start(slopeInterval);
 	return true;
 }
 
@@ -738,13 +739,7 @@ float NextBotGroundLocomotion::GetTraversableSlopeLimitThunk()
 			return actualSlope;
 		}
 
-		auto lerp = [](float x, float a, float b)
-			{
-				return a + x * (b - a);
-			};
-
-		float factor = slopeTimer.GetElapsedTime() / slopeTimer.GetCountdownDuration();
-		return lerp(factor, 0.0f, actualSlope);
+		return 0.0f;
 	}
 
 	return actualSlope;
