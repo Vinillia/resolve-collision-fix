@@ -29,6 +29,7 @@ ConVar z_resolve_zombie_collision_multiplier("z_resolve_zombie_collision_multipl
 
 ConVar z_resolve_zombie_climb_up_ledge("z_resolve_zombie_climb_up_ledge", "1", 0, "0 - Use original function; 1 - Use extension implementation");
 ConVar z_resolve_zombie_climb_up_ledge_debug("z_resolve_zombie_climb_up_ledge_debug", "0", 0, "0 - Disable debug; 1 - Enable debug");
+ConVar z_resolve_zombie_climb_up_slope_timer("z_resolve_zombie_climb_up_slope_timer", "2.0", 0, "How long we don't obey slope limit");
 
 DETOUR_DECL_MEMBER1(NextBotGroundLocomotion__ResolveZombieCollisions, Vector, const Vector&, pos)
 {
