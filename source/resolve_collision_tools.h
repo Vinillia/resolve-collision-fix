@@ -38,7 +38,6 @@ namespace ine
 		return call_this<K>(get_vtable_fn(instance, offset), instance, args...);
 	}
 }
-
 namespace SourceMod
 {
 	class IGameConfig;
@@ -56,6 +55,8 @@ class Vector;
 
 template< class T >
 class CHandle;
+
+extern bool ClassMatchesComplex(CBaseEntity* entity, const char* match);
 
 class ResolveCollisionTools
 {
@@ -196,5 +197,6 @@ inline void ResolveCollisionTools::CBaseEntity_SetGroundEntity(CBaseEntity* enti
 }
 
 extern ResolveCollisionTools* collisiontools;
+
 
 #endif // !_INCLUDE_RESOLVE_COLLISION_TOOLS_H

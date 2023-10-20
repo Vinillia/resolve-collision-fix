@@ -29,6 +29,12 @@ public:
 	virtual ~CBasePropDoor() {};
 };
 
+class CBreakableProp : public CBaseEntity
+{
+public:
+	virtual ~CBreakableProp() {};
+};
+
 bool IgnoreActorsTraceFilterFunction(IHandleEntity* pServerEntity, int contentsMask)
 {
 	CBaseEntity* entity = EntityFromEntityHandle(pServerEntity);
@@ -122,6 +128,31 @@ public:
 	}
 };
 
+bool IsFlimsy(CBaseEntity* entity)
+{
+	static int m_collisionGroupOffs = collisiontools->GetDataOffset("CBaseEntity", "m_CollisionGroup");
+	static int m_iHealthOffs = collisiontools->GetDataOffset(entity, "m_iHealth");
+	static int m_takedamageOffs = collisiontools->GetDataOffset(entity, "m_takedamage");
+
+	AssertOnce(m_collisionGroupOffs != -1 && m_iHealthOffs != -1 && m_takedamageOffs != -1);
+
+	const Collision_Group_t& collisionGroup = *reinterpret_cast<Collision_Group_t*>((uintptr_t)entity + m_collisionGroupOffs);
+	const int& m_iHealth = *reinterpret_cast<int*>((uintptr_t)entity + m_iHealthOffs);
+	const int& m_takedamage = *reinterpret_cast<int*>((uintptr_t)entity + m_takedamageOffs);
+
+	if ((collisionGroup == COLLISION_GROUP_BREAKABLE_GLASS || collisionGroup == COLLISION_GROUP_NONE) &&
+		m_takedamage == 2 &&
+		m_iHealth <= 10 &&
+		(ClassMatchesComplex(entity, "func_breakable_surf") ||
+			ClassMatchesComplex(entity, "func_breakable") ||
+			dynamic_cast<CBreakableProp*>(entity) != nullptr))
+	{
+		return true;
+	}
+
+	return false;
+}
+
 bool NextBotGroundLocomotion::DetectCollision(trace_t* pTrace, int& recursionLimit, const Vector& from, const Vector& to, const Vector& vecMins, const Vector& vecMaxs)
 {
 	IBody* body = GetBot()->GetBodyInterface();
@@ -151,7 +182,7 @@ bool NextBotGroundLocomotion::DetectCollision(trace_t* pTrace, int& recursionLim
 	{
 		CBaseEntity* other = pTrace->m_pEnt;
 	
-		if (!collisiontools->MyCombatCharacterPointer(other) && IsEntityTraversable(other, IMMEDIATELY) /*&& IsFlimsy( other )*/)
+		if (!collisiontools->MyCombatCharacterPointer(other) && IsEntityTraversable(other, IMMEDIATELY) && IsFlimsy( other ))
 		{
 			if (recursionLimit <= 0)
 				return true;
