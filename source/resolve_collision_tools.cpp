@@ -165,3 +165,18 @@ int ResolveCollisionTools::GetDataOffset(const char* netclass, const char* prope
 
 	return info.actual_offset;
 }
+
+bool ClassMatchesComplex(cell_t entity, const char* match)
+{
+	CBaseEntity* pEntity = gamehelpers->ReferenceToEntity(entity);
+
+	if (!pEntity)
+		return false;
+
+	return ClassMatchesComplex(entity, match);
+}
+
+bool ClassMatchesComplex(CBaseEntity* entity, const char* match)
+{
+	return strcmp(gamehelpers->GetEntityClassname(entity), match) == 0;
+}
