@@ -244,6 +244,7 @@ Vector NextBotGroundLocomotion::ResolveCollision(const Vector& from, const Vecto
 	bool bPerformCrouchTest = false;
 	Vector mins;
 	Vector maxs;
+
 	if (m_isUsingFullFeetTrace)
 	{
 		mins = body->GetHullMins();
@@ -275,21 +276,6 @@ Vector NextBotGroundLocomotion::ResolveCollision(const Vector& from, const Vecto
 		Vector dir = to - from;
 		dir.NormalizeInPlace();
 		NDebugOverlay::HorzArrow(from, from + dir * 18.0f, 5.0f, 25, 0, 255, 255, true, 0.1f);
-	}
-
-	CountdownTimer& slope = g_slopeTimer[this];
-	if (slope.HasStarted())
-	{
-		if (!slope.IsElapsed())
-		{
-			Vector velocity = GetVelocity();
-			velocity.z = 0.0f;
-			SetVelocity(velocity);
-		}
-		else
-		{
-			slope.Invalidate();
-		}
 	}
 
 	trace_t trace;
@@ -370,7 +356,6 @@ Vector NextBotGroundLocomotion::ResolveCollision(const Vector& from, const Vecto
 		if (trace.startsolid)
 		{
 			// stuck inside solid; don't move
-
 			if (trace.m_pEnt && !collisiontools->IsWorld(trace.m_pEnt))
 			{
 				// only ignore physics props that are not doors
@@ -444,7 +429,7 @@ Vector NextBotGroundLocomotion::ResolveCollision(const Vector& from, const Vecto
 
 	if (!trace.startsolid)
 	{
-		m_lastValidPos = resolvedGoal;
+		m_lastValidPos = from;
 	}
 
 	if (m_bRecomputePostureOnCollision)
@@ -542,12 +527,12 @@ bool NextBotGroundLocomotion::ClimbUpToLedgeThunk(const Vector& landingGoal, con
 		start = landingGoalResolve - (landingForward * heightAdjust);
 		end = feet + hullWidth * 10.0f * landingForward;
 
-		NextBotTraversableTraceIgnoreActorsFilter filter(bot);
+		NextBotTraversableTraceIgnoreActorsFilter filter(bot, IMMEDIATELY);
 		TraceHull(start, end, mins, maxs, body->GetSolidMask(), &filter, &trace);
 
-		if (z_resolve_zombie_climb_up_ledge_debug.GetBool())
+		if (z_resolve_zombie_climb_up_ledge_debug.GetInt() == 2)
 		{
-			// NDebugOverlay::SweptBox(start, end, body->GetHullMins(), body->GetHullMaxs(), vec3_angle, 125, 255, 155, 255, 6.0f);
+			NDebugOverlay::SweptBox(start, end, body->GetHullMins(), body->GetHullMaxs(), vec3_angle, 125, 255, 155, 255, 6.0f);
 		}
 
 		normal = trace.plane.normal;
@@ -586,9 +571,9 @@ ret:
 		NextBotTraversableTraceIgnoreActorsFilter filter(bot);
 		TraceHull(start, end, body->GetHullMins(), body->GetHullMaxs(), body->GetSolidMask(), &filter, &trace);
 
-		if (z_resolve_zombie_climb_up_ledge_debug.GetBool())
+		if (z_resolve_zombie_climb_up_ledge_debug.GetInt() == 2)
 		{
-			// NDebugOverlay::SweptBox(start, end, body->GetHullMins(), body->GetHullMaxs(), vec3_angle, 125, 255, 155, 255, 6.0f);
+			NDebugOverlay::SweptBox(start, end, body->GetHullMins(), body->GetHullMaxs(), vec3_angle, 125, 255, 155, 255, 6.0f);
 		}
 
 		if (trace.fraction >= 1.0 && !trace.allsolid && !trace.startsolid)
