@@ -6,8 +6,9 @@
 #include "NextBotBodyInterface.h"
 
 #include <../extensions/sdkhooks/takedamageinfohack.h>
-
 #include <unordered_map>
+
+std::unordered_map<NextBotGroundLocomotion*, CountdownTimer> g_slopeTimer;
 
 class CBaseEntity
 {
@@ -39,7 +40,7 @@ bool IgnoreActorsTraceFilterFunction(IHandleEntity* pServerEntity, int contentsM
 	return (collisiontools->MyInfectedPointer(entity) == NULL && !collisiontools->CBaseEntity_IsPlayer(entity));
 }
 
-inline void GetHeightAdjustor(float height, float& heightAdjust, int& activity);
+inline void GetClimbActivity(float height, float& heightAdjust, int& activity);
 
 //--------------------------------------------------------------------------------------------
 /**
@@ -501,7 +502,11 @@ bool NextBotGroundLocomotion::ClimbUpToLedgeThunk(const Vector& landingGoal, con
 
 	const Vector& feet = GetFeet();
 	const float height = landingGoal.z - feet.z;
-	
+
+	float heightFixed;
+	int activity;
+	GetClimbActivity(height, heightFixed, activity);
+
 	Vector mins(-1.0f, -1.0f, GetStepHeight());
 	Vector maxs(1.0f, 1.0f, height);
 
@@ -530,7 +535,7 @@ bool NextBotGroundLocomotion::ClimbUpToLedgeThunk(const Vector& landingGoal, con
 
 		normal = trace.plane.normal;
 		heightAdjust = (hullWidth * 0.5) + heightAdjust;
-		
+
 		if (hullWidthX3 < heightAdjust)
 			goto ret;
 
@@ -544,7 +549,7 @@ bool NextBotGroundLocomotion::ClimbUpToLedgeThunk(const Vector& landingGoal, con
 
 	if (hullWidthX3 < heightAdjust || (trace.fraction >= 1.0 && !trace.allsolid))
 	{
-ret:
+	ret:
 		m_velocity = vec3_origin;
 		m_acceleration = vec3_origin;
 		return false;
@@ -577,16 +582,14 @@ ret:
 	landingGoalResolve = normal * (heightAdjust - (hullWidth * 0.5f)) + landingGoalResolve;
 
 label_61:
-	Vector goal, inverseNormal;
+	Vector goal, inverseNormal = -normal;
 	QAngle inverseAngle;
-	int activity;
-	float heightFixed;
-
-	GetHeightAdjustor(height, heightFixed, activity);
 
 	goal = landingGoalResolve;
 	goal.z += heightFixed;
-	inverseNormal = -normal;
+
+	NextBotTraversableTraceIgnoreActorsFilter filter(bot);
+	TraceHull(landingGoal, Vector(landingGoal.x, landingGoal.y, goal.z), mins, maxs, body->GetSolidMask(), &filter, &trace);
 
 	VectorAngles(inverseNormal, inverseAngle);
 	DriveTo(goal);
@@ -597,22 +600,168 @@ label_61:
 
 	if (z_resolve_zombie_climb_up_ledge_debug.GetBool())
 	{
-		NDebugOverlay::Line(landingGoal, goal, 0, 255, 0, true, 15.0f);
-		NDebugOverlay::Line(GetFeet(), landingGoal, 255, 0, 0, true, 15.0f);
-		NDebugOverlay::Line(GetFeet(), landingGoalResolve , 0, 255, 0, true, 15.0f);
+		NDebugOverlay::Line(landingGoal, goal, 255, 0, 0, true, 15.0f);
+		NDebugOverlay::Line(GetFeet(), landingGoal, 0, 255, 0, true, 15.0f);
+		NDebugOverlay::Line(GetFeet(), landingGoalResolve , 0, 0, 255, true, 15.0f);
 	}
 
 	m_isJumping = true;
 	m_isClimbingUpToLedge = true;
 	m_ledgeJumpGoalPos = landingGoal;
-
 	body->SetDesiredPosture(IBody::CROUCH);
 	bot->OnLeaveGround(GetGround());
+
+	g_slopeTimer[this].Start(2.0f);
 	return true;
 }
 
+void NextBotGroundLocomotion::UpdateGroundConstraint(void)
+{
+	// if we're up on the upward arc of our jump, don't interfere by snapping to ground
+	// don't do ground constraint if we're climbing a ladder
+	if (DidJustJump() || IsAscendingOrDescendingLadder())
+	{
+		m_isUsingFullFeetTrace = false;
+		return;
+	}
+
+	IBody* body = GetBot()->GetBodyInterface();
+	if (body == NULL)
+	{
+		return;
+	}
+
+	float halfWidth = body->GetHullWidth() / 2.0f;
+
+	// since we only care about ground collisions, keep hull short to avoid issues with low ceilings
+	/// @TODO: We need to also check actual hull height to avoid interpenetrating the world
+	float hullHeight = GetStepHeight();
+
+	// always need tolerance even when jumping/falling to make sure we detect ground penetration
+	// must be at least step height to avoid 'falling' down stairs
+	const float stickToGroundTolerance = GetStepHeight() + 0.01f;
+
+	trace_t ground;
+	NextBotTraceFilterIgnoreActors filter((IHandleEntity*)m_nextBot, COLLISION_GROUP_NONE);
+
+	TraceHull(GetBot()->GetPosition() + Vector(0, 0, GetStepHeight() + 0.001f),
+		GetBot()->GetPosition() + Vector(0, 0, -stickToGroundTolerance),
+		Vector(-halfWidth, -halfWidth, 0),
+		Vector(halfWidth, halfWidth, hullHeight),
+		body->GetSolidMask(), &filter, &ground);
+
+	if (ground.startsolid)
+		return;
+
+	if (ground.fraction < 1.0f)
+	{
+		// there is ground below us
+		m_groundNormal = ground.plane.normal;
+
+		m_isUsingFullFeetTrace = false;
+
+		// zero velocity normal to the ground
+		float normalVel = DotProduct(m_groundNormal, m_velocity);
+		m_velocity -= normalVel * m_groundNormal;
+
+		// check slope limit
+		if (ground.plane.normal.z < GetTraversableSlopeLimitThunk())
+		{
+			// too steep to stand here
+
+			// too steep to be ground - treat it like a wall hit
+			if ((m_velocity.x * ground.plane.normal.x + m_velocity.y * ground.plane.normal.y) <= 0.0f)
+			{
+				GetBot()->OnContact(ground.m_pEnt, &ground);
+			}
+
+			// we're contacting some kind of ground
+			// zero accelerations normal to the ground
+
+			float normalAccel = DotProduct(m_groundNormal, m_acceleration);
+			m_acceleration -= normalAccel * m_groundNormal;
+
+			// clear out upward velocity so we don't walk up lightpoles
+			m_velocity.z = MIN(0, m_velocity.z);
+			m_acceleration.z = MIN(0, m_acceleration.z);
+
+			return;
+		}
+
+		// inform other components of collision if we didn't land on the 'world'
+		if (ground.m_pEnt && !collisiontools->IsWorld(ground.m_pEnt))
+		{
+			GetBot()->OnContact(ground.m_pEnt, &ground);
+		}
+
+		// snap us to the ground 
+		GetBot()->SetPosition(ground.endpos);
+
+		if (!IsOnGround())
+		{
+			// just landed
+			collisiontools->CBaseEntity_SetGroundEntity(m_nextBot, ground.m_pEnt);
+			m_ground = ground.m_pEnt != nullptr ? ((IHandleEntity*)ground.m_pEnt)->GetRefEHandle() : -1;
+
+			// landing stops any jump in progress
+			m_isJumping = false;
+			m_isJumpingAcrossGap = false;
+
+			GetBot()->OnLandOnGround(ground.m_pEnt);
+		}
+	}
+	else
+	{
+		// not on the ground
+		if (IsOnGround())
+		{
+			GetBot()->OnLeaveGround(GetGround());
+			if (!IsClimbingUpToLedge() && !IsJumpingAcrossGap())
+			{
+				m_isUsingFullFeetTrace = true; // We're in the air and there's space below us, so use the full trace
+				m_acceleration.z -= GetGravity(); // start our gravity now
+			}
+		}
+	}
+}
+
+bool NextBotGroundLocomotion::DidJustJump(void) const
+{
+	const Vector& velocity = collisiontools->CBaseEntity_GetAbsVelocity(m_nextBot);
+	return IsClimbingOrJumping() && (velocity.z > 0.0f);
+}
+
+float NextBotGroundLocomotion::GetTraversableSlopeLimitThunk()
+{
+	CountdownTimer& slopeTimer = g_slopeTimer[this];
+	float actualSlope = GetTraversableSlopeLimit();
+
+	if (slopeTimer.HasStarted())
+	{
+		if (slopeTimer.IsElapsed())
+		{
+			slopeTimer.Invalidate();
+			return actualSlope;
+		}
+
+		return 0.0f;
+	}
+
+	return actualSlope;
+}
+
+inline float NextBotGroundLocomotion::GetGravity() const
+{
+	static ConVarRef nb_gravity("nb_gravity", false);
+
+	if (nb_gravity.IsValid())
+		return nb_gravity.GetFloat();
+
+	return 1000.0f;
+}
+
 #ifdef WIN32
-inline void GetHeightAdjustor(float height, float& heightAdjust, int& activity)
+inline void GetClimbActivity(float height, float& heightAdjust, int& activity)
 {
 	if (height >= 30.0)
 	{
@@ -714,7 +863,7 @@ inline void GetHeightAdjustor(float height, float& heightAdjust, int& activity)
 	}
 }
 #else
-inline void GetHeightAdjustor(float height, float& heightAdjust, int& activity)
+inline void GetClimbActivity(float height, float& heightAdjust, int& activity)
 {
 	if (height < 30.0)
 	{
@@ -810,3 +959,4 @@ inline void GetHeightAdjustor(float height, float& heightAdjust, int& activity)
 	}
 }
 #endif
+
