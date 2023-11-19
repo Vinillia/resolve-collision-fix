@@ -579,7 +579,7 @@ bool NextBotGroundLocomotion::ClimbUpToLedgeThunk(const Vector& landingGoal, con
 		}
 	}
 
-	landingGoalResolve = normal * (heightAdjust - (hullWidth * 0.5f)) + landingGoalResolve;
+	landingGoalResolve = normal * heightAdjust + landingGoalResolve;
 
 label_61:
 	Vector goal, inverseNormal = -normal;
@@ -587,9 +587,6 @@ label_61:
 
 	goal = landingGoalResolve;
 	goal.z += heightFixed;
-
-	NextBotTraversableTraceIgnoreActorsFilter filter(bot);
-	TraceHull(landingGoal, Vector(landingGoal.x, landingGoal.y, goal.z), mins, maxs, body->GetSolidMask(), &filter, &trace);
 
 	VectorAngles(inverseNormal, inverseAngle);
 	DriveTo(goal);
