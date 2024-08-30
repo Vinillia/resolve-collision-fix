@@ -15,6 +15,7 @@ ICvar* icvar = nullptr;
 IEngineTrace* enginetrace = nullptr;
 IStaticPropMgrServer* staticpropmgr = nullptr;
 CDebugOverlay* debugoverlay = nullptr;
+ISDKHooks* g_pSDKHooks = nullptr;
 
 CDetour* g_pResolveCollisionDetour = nullptr;
 CDetour* g_pResolveZombieCollisionDetour = nullptr;
@@ -29,6 +30,8 @@ ConVar z_resolve_zombie_collision_multiplier("z_resolve_zombie_collision_multipl
 
 ConVar z_resolve_zombie_climb_up_ledge("z_resolve_zombie_climb_up_ledge", "1", 0, "0 - Use original function; 1 - Use extension implementation");
 ConVar z_resolve_zombie_climb_up_ledge_debug("z_resolve_zombie_climb_up_ledge_debug", "0", 0, "0 - Disable debug; 1 - Enable debug");
+
+ConVar z_resolve_zombie_collision_auto_multiplier("z_resolve_zombie_collision_auto_multiplier", "1", 0, "Automaticly manages power of collision between common infected");
 
 DETOUR_DECL_MEMBER1(NextBotGroundLocomotion__ResolveZombieCollisions, Vector, const Vector&, pos)
 {
@@ -149,29 +152,19 @@ bool SDKResolveCollision::SDK_OnMetamodUnload(char* error, size_t maxlen)
 
 void SDKResolveCollision::SDK_OnUnload()
 {
-	if (g_pUpdateGroundConstraint)
-	{
-		g_pUpdateGroundConstraint->Destroy();
-		g_pUpdateGroundConstraint = nullptr;
-	}
-
-	if (g_pResolveCollisionDetour)
-	{
-		g_pResolveCollisionDetour->Destroy();
-		g_pResolveCollisionDetour = nullptr;
-	}
-
-	if (g_pResolveZombieCollisionDetour)
-	{
-		g_pResolveZombieCollisionDetour->Destroy();
-		g_pResolveZombieCollisionDetour = nullptr;
-	}
-
-	if (g_pResolveZombieClimbUpLedgeDetour)
-	{
-		g_pResolveZombieClimbUpLedgeDetour->Destroy();
-		g_pResolveZombieClimbUpLedgeDetour = nullptr;
-	}
+	auto safe_release = [](CDetour*& detour)
+		{
+			if (detour)
+			{
+				detour->Destroy();
+				detour = nullptr;
+			}
+		};
+	
+	safe_release(g_pUpdateGroundConstraint);
+	safe_release(g_pResolveCollisionDetour);
+	safe_release(g_pResolveZombieCollisionDetour);
+	safe_release(g_pResolveZombieClimbUpLedgeDetour);
 }
 
 bool SDKResolveCollision::QueryRunning(char* error, size_t maxlength)

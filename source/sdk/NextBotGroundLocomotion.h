@@ -53,6 +53,8 @@ public:
 
 	float GetGravity() const;
 
+	bool HasClimbingActivity();
+
 public:
 	Vector m_goal;
 	Vector m_velocity;

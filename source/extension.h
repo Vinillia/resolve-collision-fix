@@ -45,12 +45,13 @@
 #undef clamp
 
 #include "smsdk_ext.h"
+#include <ISDKHooks.h>
 
 /**
  * @brief Sample implementation of the SDK Extension.
  * Note: Uncomment one of the pre-defined virtual functions in order to use it.
  */
-class SDKResolveCollision : public SDKExtension, public IConCommandBaseAccessor
+class SDKResolveCollision : public SDKExtension, public IConCommandBaseAccessor, public ISMEntityListener
 {
 public: // SDKExtension
 	virtual bool SDK_OnLoad(char* error, size_t maxlen, bool late) override;

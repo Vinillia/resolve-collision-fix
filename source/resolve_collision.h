@@ -8,7 +8,16 @@
 #include <../extensions/sdkhooks/takedamageinfohack.h>
 #include <unordered_map>
 
-std::unordered_map<NextBotGroundLocomotion*, CountdownTimer> g_slopeTimer;
+struct NextBotGroundCollisionData
+{
+	bool is_climbing = false;
+	CountdownTimer nofall_timer;
+	CountdownTimer slope_timer;
+};
+
+std::unordered_map<NextBotGroundLocomotion*, NextBotGroundCollisionData> g_nextbot_collision_data;
+
+extern ConVar z_resolve_zombie_collision_auto_multiplier;
 
 class CBaseEntity
 {
@@ -225,6 +234,21 @@ Vector NextBotGroundLocomotion::ResolveCollision(const Vector& from, const Vecto
 	{
 		Assert(!m_bRecomputePostureOnCollision);
 		return to;
+	}
+
+	if (g_nextbot_collision_data[this].is_climbing && !HasClimbingActivity())
+	{
+		g_nextbot_collision_data[this].is_climbing = false;
+		g_nextbot_collision_data[this].nofall_timer.Start(0.1f);
+		g_nextbot_collision_data[this].slope_timer.Start(0.16f);
+	}
+
+	CountdownTimer& slope = g_nextbot_collision_data[this].nofall_timer;
+
+	if (slope.HasStarted() && !slope.IsElapsed())
+	{
+		if (from.z > to.z)
+			const_cast<Vector&>(to).z = from.z;
 	}
 
 	// Only bother to recompute posture if we're currently standing or crouching
@@ -453,6 +477,7 @@ Vector NextBotGroundLocomotion::ResolveZombieCollisions(const Vector& pos)
 	const float dt = GetUpdateInterval();
 	const float mul = z_resolve_zombie_collision_multiplier.GetFloat();
 
+
 	// only avoid if we're actually trying to move somewhere, and are enraged
 	if (me != NULL && !IsUsingLadder() && !IsClimbingOrJumping() && IsOnGround() && collisiontools->CBaseEntity_IsAlive(m_nextBot) && IsAttemptingToMove() /*&& GetBot()->GetBodyInterface()->IsArousal( IBody::INTENSE )*/)
 	{
@@ -466,19 +491,20 @@ Vector NextBotGroundLocomotion::ResolveZombieCollisions(const Vector& pos)
 
 			if (them)
 			{
-				Vector toThem = collisiontools->CBaseEntity_GetAbsOrigin(them) - collisiontools->CBaseEntity_GetAbsOrigin(me);
+				Vector toThem = (collisiontools->CBaseEntity_GetAbsOrigin(them) - collisiontools->CBaseEntity_GetAbsOrigin(me));
 				toThem.z = 0.0f;
 	
 				float range = toThem.NormalizeInPlace();
-	
+
 				if (range < hullWidth)
 				{
 					// these two infected are in contact
 					collisiontools->CBaseEntity_Touch(me, them);
 					
 					// move out of contact
-					float penetration = hullWidth - range;
+					float penetration = (hullWidth - range);
 					float weight = 1.0f + (2.0f * penetration / hullWidth);
+					
 					avoid += -weight * toThem;
 					avoidWeight += weight;
 				}
@@ -486,7 +512,20 @@ Vector NextBotGroundLocomotion::ResolveZombieCollisions(const Vector& pos)
 		}
 	
 		if (avoidWeight > 0.0f)
-			adjustedNewPos += mul * (avoid / avoidWeight);
+		{
+			Vector collision = avoid / avoidWeight;
+			
+			if (z_resolve_zombie_collision_auto_multiplier.GetBool())
+			{
+				adjustedNewPos *= (dt / 0.1f);
+			}
+			else
+			{
+				adjustedNewPos *= mul;
+			}
+
+			adjustedNewPos += collision;
+		}
 	}
 
 	return adjustedNewPos;
@@ -608,7 +647,7 @@ label_61:
 	body->SetDesiredPosture(IBody::CROUCH);
 	bot->OnLeaveGround(GetGround());
 
-	g_slopeTimer[this].Start(2.0f);
+	g_nextbot_collision_data[this].is_climbing = true;
 	return true;
 }
 
@@ -730,7 +769,7 @@ bool NextBotGroundLocomotion::DidJustJump(void) const
 
 float NextBotGroundLocomotion::GetTraversableSlopeLimitThunk()
 {
-	CountdownTimer& slopeTimer = g_slopeTimer[this];
+	CountdownTimer& slopeTimer = g_nextbot_collision_data[this].slope_timer;
 	float actualSlope = GetTraversableSlopeLimit();
 
 	if (slopeTimer.HasStarted())
@@ -755,6 +794,54 @@ inline float NextBotGroundLocomotion::GetGravity() const
 		return nb_gravity.GetFloat();
 
 	return 1000.0f;
+}
+
+inline bool NextBotGroundLocomotion::HasClimbingActivity()
+{
+	IBody* body = GetBot()->GetBodyInterface();
+
+	if (!body)
+		return false;
+
+	Activity activity = body->GetActivity();
+
+	switch (activity)
+	{
+#ifdef WIN32
+		case 737:
+		case 735:
+		case 733:
+		case 732:
+		case 730:
+		case 728:
+		case 727:
+		case 726:
+		case 725:
+		case 723:
+		case 721:
+		case 719:
+		case 718:
+#else
+		case 718:
+		case 721:
+		case 737:
+		case 735:
+		case 733:
+		case 732:
+		case 730:
+		case 728:
+		case 727:
+		case 726:
+		case 725:
+		case 723:
+		case 719:
+#endif
+			return true;
+	default:
+		break;
+	}
+
+	return false;
 }
 
 #ifdef WIN32
