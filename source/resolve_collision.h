@@ -517,11 +517,11 @@ Vector NextBotGroundLocomotion::ResolveZombieCollisions(const Vector& pos)
 			
 			if (z_resolve_zombie_collision_auto_multiplier.GetBool())
 			{
-				adjustedNewPos *= (dt / 0.1f);
+				collision *= (dt / 0.1f);
 			}
 			else
 			{
-				adjustedNewPos *= mul;
+				collision *= mul;
 			}
 
 			adjustedNewPos += collision;
