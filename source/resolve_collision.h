@@ -1,4 +1,4 @@
-
+﻿
 #include "resolve_collision_tools.h"
 #include "util_shared.h"
 #include "NextBotGroundLocomotion.h"
@@ -11,13 +11,19 @@
 struct NextBotGroundCollisionData
 {
 	bool is_climbing = false;
+	bool is_on_ground = false;
+
 	CountdownTimer nofall_timer;
 	CountdownTimer slope_timer;
+
+	Vector climb_dir;
 };
 
 std::unordered_map<NextBotGroundLocomotion*, NextBotGroundCollisionData> g_nextbot_collision_data;
 
 extern ConVar z_resolve_zombie_collision_auto_multiplier;
+
+ConVar z_resolve_zombie_climb_push_distance("z_resolve_zombie_climb_push_distance", "50.0");
 
 class CBaseEntity
 {
@@ -236,19 +242,34 @@ Vector NextBotGroundLocomotion::ResolveCollision(const Vector& from, const Vecto
 		return to;
 	}
 
-	if (g_nextbot_collision_data[this].is_climbing && !HasClimbingActivity())
+	NextBotGroundCollisionData& data = g_nextbot_collision_data[this];
+
+	if (data.is_climbing && !HasClimbingActivity())
 	{
-		g_nextbot_collision_data[this].is_climbing = false;
-		g_nextbot_collision_data[this].nofall_timer.Start(0.1f);
-		g_nextbot_collision_data[this].slope_timer.Start(0.16f);
+		data.is_climbing = false;
+		data.is_on_ground = IsOnGround();
+		data.nofall_timer.Start(0.1f);
+		data.slope_timer.Start(0.1f);
 	}
 
-	CountdownTimer& slope = g_nextbot_collision_data[this].nofall_timer;
+	CountdownTimer& nofall = data.nofall_timer;
 
-	if (slope.HasStarted() && !slope.IsElapsed())
+	if (nofall.HasStarted() && !nofall.IsElapsed())
 	{
-		if (from.z > to.z)
-			const_cast<Vector&>(to).z = from.z;
+		if (!g_nextbot_collision_data[this].is_on_ground && IsOnGround())
+		{
+			nofall.Invalidate();
+		}
+		else if (from.z > to.z)
+		{
+			Vector& _to = const_cast<Vector&>(to);
+
+			_to += data.climb_dir * z_resolve_zombie_climb_push_distance.GetFloat() * GetUpdateInterval();
+			_to.z = from.z;
+			
+			// I'm so sorry;
+			return to; 
+		}
 	}
 
 	// Only bother to recompute posture if we're currently standing or crouching
@@ -647,7 +668,11 @@ label_61:
 	body->SetDesiredPosture(IBody::CROUCH);
 	bot->OnLeaveGround(GetGround());
 
-	g_nextbot_collision_data[this].is_climbing = true;
+	NextBotGroundCollisionData& data = g_nextbot_collision_data[this];
+
+	AngleVectors(inverseAngle, &data.climb_dir);
+	VectorNormalize(data.climb_dir);
+	data.is_climbing = true;
 	return true;
 }
 
