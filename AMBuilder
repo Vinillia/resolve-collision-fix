@@ -50,6 +50,8 @@ for sdk_name in Extension.sdks:
   if compiler.vendor == 'msvc':
     compiler.defines += [ '_CRT_NO_VA_START_VALIDATION' ]
     compiler.cxxflags.append('/std:c++17')
+    compiler.cxxflags.append('/Ob0')
+    compiler.cxxflags.append('/Oi-')
     compiler.linkflags.append('legacy_stdio_definitions.lib')
     compiler.linkflags.append('Ws2_32.lib')
   elif compiler.vendor == 'clang':

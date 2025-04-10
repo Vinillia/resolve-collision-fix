@@ -233,6 +233,29 @@ bool NextBotGroundLocomotion::DetectCollision(trace_t* pTrace, int& recursionLim
 	return true;
 }
 
+void NextBotGroundLocomotion::UpdatePosition(const Vector& newPos)
+{
+	static ConVarRef NextBotStop("nb_stop");
+
+	static int m_iEFlags_offset = collisiontools->GetDataOffset("CBaseEntity", "m_iEFlags");
+	const int& m_iEFLags = *reinterpret_cast<int*>((uintptr_t)m_nextBot + m_iEFlags_offset);
+
+	if (NextBotStop.GetBool() || (m_iEFLags & FL_FROZEN) != 0)
+	{
+		return;
+	}
+
+	// avoid very nearby Actors to simulate "mushy" collisions between actors in contact with each other
+	Vector adjustedNewPos = ResolveZombieCollisions( newPos );
+
+	// check for collisions during move and resolve them	
+	const int recursionLimit = 3;
+	Vector safePos = ResolveCollision(GetBot()->GetPosition(), adjustedNewPos, recursionLimit);
+
+	// set the bot's position
+	GetBot()->SetPosition(safePos);
+}
+
 Vector NextBotGroundLocomotion::ResolveCollision(const Vector& from, const Vector& to, int recursionLimit)
 {
 	IBody* body = GetBot()->GetBodyInterface();

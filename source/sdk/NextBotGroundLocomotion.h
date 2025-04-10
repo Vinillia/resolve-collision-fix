@@ -45,6 +45,9 @@ public:
 	Vector ResolveCollision( const Vector &from, const Vector &to, int recursionLimit );	// check for collisions along move
 	bool DetectCollision( trace_t *pTrace, int &nDestructionAllowed, const Vector &from, const Vector &to, const Vector &vecMins, const Vector &vecMaxs );						// return true if we are climbing a ladder
 	
+	void UpdatePosition(const Vector& newPos);
+
+
 	bool ClimbUpToLedgeThunk(const Vector& landingGoal, const Vector& landingForward, const CBaseEntity* obstacle);
 	float GetTraversableSlopeLimitThunk();
 

@@ -21,6 +21,7 @@ CDetour* g_pResolveCollisionDetour = nullptr;
 CDetour* g_pResolveZombieCollisionDetour = nullptr;
 CDetour* g_pResolveZombieClimbUpLedgeDetour = nullptr;
 CDetour* g_pUpdateGroundConstraint = nullptr;
+CDetour* g_pUpdatePosition = nullptr;
 
 ConVar z_resolve_collision("z_resolve_collision", "1", 0, "0 - Use original function; 1 - Use extension implementation with fix; 2 - Use extension implementation without fix; 3 - Neither of calls");
 ConVar z_resolve_collision_debug("z_resolve_collision_debug", "0", 0, "0 - Disable collision overlay;1 - Enable collision overlay; 2 - Enable clean collision overlay (works only for 1 common but smoother)");
@@ -76,6 +77,16 @@ DETOUR_DECL_MEMBER0(ZombieBotLocomotion__UpdateGroundConstraint, void)
 	DETOUR_MEMBER_CALL(ZombieBotLocomotion__UpdateGroundConstraint)();
 }
 
+DETOUR_DECL_MEMBER1(ZombieBotLocomotion__UpdatePosition, void, const Vector&, newPos)
+{
+	NextBotGroundLocomotion* groundLocomotion = (NextBotGroundLocomotion*)this;
+
+	if (z_resolve_collision.GetBool())
+		return groundLocomotion->UpdatePosition(newPos);
+
+	DETOUR_MEMBER_CALL(ZombieBotLocomotion__UpdatePosition)(newPos);
+}
+
 bool SDKResolveCollision::SDK_OnLoad(char* error, size_t maxlen, bool late)
 {
 	if (!gameconfs->LoadGameConfigFile("l4d2_resolve_collision", &gpConfig, error, maxlen))
@@ -93,6 +104,10 @@ bool SDKResolveCollision::SDK_OnLoad(char* error, size_t maxlen, bool late)
 	g_pResolveZombieCollisionDetour = DETOUR_CREATE_MEMBER(NextBotGroundLocomotion__ResolveZombieCollisions, "NextBotGroundLocomotion::ResolveZombieCollisions");
 	g_pResolveZombieClimbUpLedgeDetour = DETOUR_CREATE_MEMBER(NextBotGroundLocomotion__ClimbUpToLedge, "NextBotGroundLocomotion::ClimbUpToLedge");
 	g_pUpdateGroundConstraint = DETOUR_CREATE_MEMBER(ZombieBotLocomotion__UpdateGroundConstraint, "ZombieBotLocomotion::UpdateGroundConstraint");
+	
+#ifdef _WIN32
+	g_pUpdatePosition = DETOUR_CREATE_MEMBER(ZombieBotLocomotion__UpdatePosition, "ZombieBotLocomotion::UpdatePosition");
+#endif // _WIN32
 
 	if (g_pResolveCollisionDetour == nullptr)
 	{
@@ -118,10 +133,23 @@ bool SDKResolveCollision::SDK_OnLoad(char* error, size_t maxlen, bool late)
 		return false;
 	}
 
+#ifdef _WIN32
+	if (g_pUpdatePosition == nullptr)
+	{
+		V_snprintf(error, maxlen, "Failed to create ZombieBotLocomotion::UpdatePosition detour");
+		return false;
+	}
+#endif
+
 	g_pUpdateGroundConstraint->EnableDetour();
 	g_pResolveCollisionDetour->EnableDetour();
 	g_pResolveZombieCollisionDetour->EnableDetour();
 	g_pResolveZombieClimbUpLedgeDetour->EnableDetour();
+
+#ifdef _WIN32
+	g_pUpdatePosition->EnableDetour();
+#endif
+
 	return true;
 }
 
@@ -165,6 +193,7 @@ void SDKResolveCollision::SDK_OnUnload()
 	safe_release(g_pResolveCollisionDetour);
 	safe_release(g_pResolveZombieCollisionDetour);
 	safe_release(g_pResolveZombieClimbUpLedgeDetour);
+	safe_release(g_pUpdatePosition);
 }
 
 bool SDKResolveCollision::QueryRunning(char* error, size_t maxlength)
